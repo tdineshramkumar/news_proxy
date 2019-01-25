@@ -50,6 +50,7 @@ type API struct {
 	timeout    time.Duration
 	numRetries int
 	cacheSize  int
+	client     *http.Client
 }
 
 func New() *API {
@@ -62,6 +63,17 @@ func (api *API) Count() int {
 }
 
 func (api *API) Setup() error {
+	// Customize the Transport to have larger connection pool
+	defaultRoundTripper := http.DefaultTransport
+	defaultTransportPointer, ok := defaultRoundTripper.(*http.Transport)
+	if !ok {
+		panic(fmt.Sprintf("defaultRoundTripper not an *http.Transport"))
+	}
+	defaultTransport := *defaultTransportPointer // dereference it to get a copy of the struct that the pointer points to
+	defaultTransport.MaxIdleConns = 100
+	defaultTransport.MaxIdleConnsPerHost = 100
+
+	api.client = &http.Client{Transport: &defaultTransport}
 	return nil
 }
 
@@ -78,7 +90,7 @@ func (api *API) CacheSize() int {
 }
 
 func (api *API) TopNews() (ids []news.ID, err error) {
-	resp, err := http.Get(fmt.Sprintf("%s/topstories.json", apiBase))
+	resp, err := api.client.Get(fmt.Sprintf("%s/topstories.json", apiBase))
 	if err != nil {
 		fmt.Println("ERROR Could not get HN TopNews", err)
 		return nil, err
@@ -96,7 +108,7 @@ func (api *API) TopNews() (ids []news.ID, err error) {
 func (api *API) News(ID news.ID) (news.News, error) {
 	var item Item
 	id := int(ID.(float64))
-	resp, err := http.Get(fmt.Sprintf("%s/item/%d.json", apiBase, id))
+	resp, err := api.client.Get(fmt.Sprintf("%s/item/%d.json", apiBase, id))
 	if err != nil {
 		fmt.Println("ERROR while getting news", err)
 		return nil, err
