@@ -22,6 +22,19 @@ func main() {
 
 	URL := fmt.Sprintf("http://%s:%d/", serverDomain, port)
 	var wg sync.WaitGroup
+
+	// Customize the Transport to have larger connection pool
+	defaultRoundTripper := http.DefaultTransport
+	defaultTransportPointer, ok := defaultRoundTripper.(*http.Transport)
+	if !ok {
+		panic(fmt.Sprintf("defaultRoundTripper not an *http.Transport"))
+	}
+	defaultTransport := *defaultTransportPointer // dereference it to get a copy of the struct that the pointer points to
+	defaultTransport.MaxIdleConns = 100
+	defaultTransport.MaxIdleConnsPerHost = 100
+
+	myClient := &http.Client{Transport: &defaultTransport}
+
 	for routine := 0; routine < numRoutines; routine++ {
 		wg.Add(1)
 		go func() {
@@ -29,7 +42,7 @@ func main() {
 			for trial := 0; trial < numTrials; trial++ {
 				start := time.Now()
 				// Send the request to the server
-				resp, err := http.Get(URL)
+				resp, err := myClient.Get(URL)
 				io.Copy(ioutil.Discard, resp.Body)
 				resp.Body.Close()
 				duration := time.Now().Sub(start)
