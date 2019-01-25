@@ -31,8 +31,11 @@ func main() {
 	}
 	defaultTransport := *defaultTransportPointer // dereference it to get a copy of the struct that the pointer points to
 	defaultTransport.MaxIdleConns = 100
-	defaultTransport.MaxIdleConnsPerHost = 100
-
+	if numRoutines > 100 {
+		defaultTransport.MaxIdleConnsPerHost = numRoutines
+	} else {
+		defaultTransport.MaxIdleConnsPerHost = 100
+	}
 	myClient := &http.Client{Transport: &defaultTransport}
 
 	for routine := 0; routine < numRoutines; routine++ {
