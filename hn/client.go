@@ -50,12 +50,13 @@ type API struct {
 	timeout    time.Duration
 	numRetries int
 	cacheSize  int
+	poolSize   int
 	client     *http.Client
 }
 
 func New() *API {
 	timeout := time.Second * 20
-	api := API{topNews: 30, timeout: timeout, numRetries: 3, cacheSize: 1000}
+	api := API{topNews: 30, timeout: timeout, numRetries: 3, cacheSize: 1000, poolSize: 100}
 	return &api
 }
 func (api *API) Count() int {
@@ -70,9 +71,8 @@ func (api *API) Setup() error {
 		panic(fmt.Sprintf("defaultRoundTripper not an *http.Transport"))
 	}
 	defaultTransport := *defaultTransportPointer // dereference it to get a copy of the struct that the pointer points to
-	defaultTransport.MaxIdleConns = 100
-	defaultTransport.MaxIdleConnsPerHost = 100
-
+	defaultTransport.MaxIdleConns = api.poolSize
+	defaultTransport.MaxIdleConnsPerHost = api.poolSize
 	api.client = &http.Client{Transport: &defaultTransport}
 	return nil
 }
@@ -105,6 +105,9 @@ func (api *API) TopNews() (ids []news.ID, err error) {
 	return
 }
 
+func (api *API) PoolSize() int {
+	return api.poolSize
+}
 func (api *API) News(ID news.ID) (news.News, error) {
 	var item Item
 	id := int(ID.(float64))

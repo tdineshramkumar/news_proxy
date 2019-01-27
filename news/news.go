@@ -34,6 +34,8 @@ type API interface {
 	News(ID) (News, error)
 	// IsRequired() is used to check if fetched news must be in top news.
 	IsRequired(News) bool
+	// PoolSize() returns the size of pool to be used for requests to the server.
+	PoolSize() int
 
 	// These are only for cached server implementation
 	// which will be using this api
