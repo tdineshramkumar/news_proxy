@@ -118,7 +118,7 @@ func (cs *cachedServer) HandleRequest() []news.News {
 	cs.requestChannel <- responseChannel
 	// wait on the response channel for the response from the caching server.
 	topNews := <-responseChannel
-	fmt.Println("Obtained top news from response caching server.")
+	// 	fmt.Println("Obtained top news from response caching server.")
 
 	return topNews
 }

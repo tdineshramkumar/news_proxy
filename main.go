@@ -12,6 +12,17 @@ import (
 	"time"
 )
 
+var responseCount uint = 0
+var requestCount uint = 0
+
+func ResponseRate() {
+	var prevRespCount uint = 0
+	for range time.Tick(time.Second) {
+		curRespCount, curReqCount := responseCount, requestCount
+		fmt.Println("Request Processed: ", curRespCount-prevRespCount, "Pending Requests: ", curReqCount-curRespCount)
+		prevRespCount = curRespCount
+	}
+}
 func main() {
 	var parallelize, enableCaching bool
 	flag.BoolVar(&parallelize, "parallel", false, "parallelize the requests to HN server")
@@ -37,10 +48,13 @@ func main() {
 			fmt.Println("Creating server with no parallelize and no caching.")
 		}
 	*/
+	go ResponseRate()
 	// Create a http server which will interact with this above application server which interacts with the APIs
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
+		requestCount++
 		topNews := Server.HandleRequest()
+		responseCount++
 		if topNews == nil {
 			// If Server Error
 			http.Error(w, "Failed to load top stories", http.StatusInternalServerError)
