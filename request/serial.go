@@ -1,22 +1,28 @@
 package request
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/t-drk/news_proxy/cache"
 	"github.com/t-drk/news_proxy/news"
+	"github.com/t-drk/news_proxy/pool"
 )
 
 // SerialRequest is a function that obtained the top news using the given API. It uses the requiredCache and newsCache to
 // avoid unncessary additional requests. It fetches the top news sequentially.
-func SerialRequest(api news.API, requiredCache cache.Cache, newsCache cache.Cache) ([]news.News, error) {
+func SerialRequest(api news.API, requiredCache cache.Cache, newsCache cache.Cache, threadPool *pool.Pool) ([]news.News, error) {
 	timeout := api.Timeout()
 	numRetries := api.NumRetries()
 	numStories := api.Count()
-	newsIDsObtained, err := ExecuteTask(func() (interface{}, error) { return api.TopNews() }, timeout, numRetries)
-	if err != nil {
-		fmt.Println("ERROR while getting top news ids. error:[", err, "]")
-		return nil, err
+
+	newsIDsObtained := threadPool.Execute(func() (interface{}, error) {
+		return ExecuteTask(func() (interface{}, error) { return api.TopNews() }, timeout, numRetries)
+	}, nil)
+
+	if newsIDsObtained == nil {
+		fmt.Println("Failed to obtain top news IDs")
+		return nil, errors.New("Failed to obtain top news IDs.")
 	}
 	// the news IDs obtained
 	newsIDs := newsIDsObtained.([]news.ID)
@@ -55,12 +61,11 @@ func SerialRequest(api news.API, requiredCache cache.Cache, newsCache cache.Cach
 				continue
 			}
 			// Get the news
-			newsObtained, err := ExecuteTask(
-				func() (interface{}, error) {
-					return api.News(newsID)
-				}, timeout, numRetries)
-			if err != nil {
-				fmt.Println("ERROR while getting news id", newsID, "error: [", err, "]")
+			newsObtained := threadPool.Execute(func() (interface{}, error) {
+				return ExecuteTask(func() (interface{}, error) { return api.News(newsID) }, timeout, numRetries)
+			}, nil)
+			if newsObtained == nil {
+				fmt.Println("Failed to obtain news for news ID:", newsID)
 				// as news not obtained for the id
 				continue
 			}

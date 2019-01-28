@@ -1,10 +1,12 @@
 package request
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/t-drk/news_proxy/cache"
 	"github.com/t-drk/news_proxy/news"
+	"github.com/t-drk/news_proxy/pool"
 )
 
 type NoNewsError string
@@ -15,7 +17,8 @@ func (err NoNewsError) Error() string {
 
 // ParallelRequest is a function that obtains the top news using the given API. It uses the requiredCache and newsCache to
 // avoid unnecessary additional requests. This function requests the top news concurrently as dictated by the numRoutines parameter..
-func ParallelRequest(api news.API, requiredCache cache.Cache, newsCache cache.Cache, numRoutines int) ([]news.News, error) {
+// It uses the threadpool to perform the requests.
+func ParallelRequest(api news.API, requiredCache cache.Cache, newsCache cache.Cache, numRoutines int, threadPool *pool.Pool) ([]news.News, error) {
 	if numRoutines <= 0 {
 		panic(fmt.Sprintf("ParallelRequest function got unexceptable number of routines.[%d]", numRoutines))
 	}
@@ -23,10 +26,18 @@ func ParallelRequest(api news.API, requiredCache cache.Cache, newsCache cache.Ca
 	timeout := api.Timeout()
 	numRetries := api.NumRetries()
 	numStories := api.Count()
-	newsIDsObtained, err := ExecuteTask(func() (interface{}, error) { return api.TopNews() }, timeout, numRetries)
-	if err != nil {
-		fmt.Println("ERROR while getting top news ids. error:[", err, "]")
-		return nil, err
+
+	// newsIDsObtained, err := ExecuteTask(func() (interface{}, error) { return api.TopNews() }, timeout, numRetries)
+	//if err != nil {
+	//	fmt.Println("ERROR while getting top news ids. error:[", err, "]")
+	//	return nil, err
+	//}
+	newsIDsObtained := threadPool.Execute(func() (interface{}, error) {
+		return ExecuteTask(func() (interface{}, error) { return api.TopNews() }, timeout, numRetries)
+	}, nil)
+	if newsIDsObtained == nil {
+		fmt.Println("Failed to obtain top news IDs.")
+		return nil, errors.New("Failed to obtain top news IDs.")
 	}
 	// the news IDs obtained
 	newsIDs := newsIDsObtained.([]news.ID)
@@ -100,12 +111,14 @@ func ParallelRequest(api news.API, requiredCache cache.Cache, newsCache cache.Ca
 				return
 			}
 			// Get the news
-			newsObtained, err := ExecuteTask(
-				func() (interface{}, error) {
-					return api.News(newsID)
-				}, timeout, numRetries)
-			if err != nil {
-				fmt.Println("ERROR while getting news id", newsID, "error: [", err, "]")
+			newsObtained := threadPool.Execute(func() (interface{}, error) {
+				return ExecuteTask(
+					func() (interface{}, error) {
+						return api.News(newsID)
+					}, timeout, numRetries)
+			}, quitChannel)
+			if newsObtained == nil {
+				fmt.Println("Failed to obtain news for newsID:", newsID)
 				// as news not obtained for the id
 				return
 			}

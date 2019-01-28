@@ -6,6 +6,7 @@ import (
 
 	"github.com/t-drk/news_proxy/lru"
 	"github.com/t-drk/news_proxy/news"
+	"github.com/t-drk/news_proxy/pool"
 )
 
 // cachedServer is like the simpleServer however caches the response it obtains on one request to
@@ -104,6 +105,7 @@ func NewCachedServer(api news.API, parallelize bool, numRetries int) Server {
 	cs.newsCache = lru.LRU_TS(api.CacheSize())
 	cs.api = api
 	cs.requestChannel = make(chan chan []news.News)
+	cs.threadPool = pool.New(api.PoolSize())
 	// launch the caching server which will take care of caching the top news.
 	go cs.cachingServer()
 	return cs

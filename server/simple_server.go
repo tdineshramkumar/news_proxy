@@ -6,6 +6,7 @@ import (
 	"github.com/t-drk/news_proxy/cache"
 	"github.com/t-drk/news_proxy/lru"
 	"github.com/t-drk/news_proxy/news"
+	"github.com/t-drk/news_proxy/pool"
 	"github.com/t-drk/news_proxy/request"
 )
 
@@ -15,6 +16,7 @@ type simpleServer struct {
 	requiredCache cache.Cache
 	newsCache     cache.Cache
 	api           news.API
+	threadPool    *pool.Pool
 }
 
 // SimpleServer returns a server implementation that does not cache server responses.
@@ -29,6 +31,7 @@ func SimpleServer(api news.API, parallelize bool, numRetries int) Server {
 	ss.requiredCache = lru.LRU_TS(api.CacheSize())
 	ss.newsCache = lru.LRU_TS(api.CacheSize())
 	ss.api = api
+	ss.threadPool = pool.New(api.PoolSize())
 	return ss
 }
 
@@ -38,9 +41,9 @@ func (ss *simpleServer) HandleRequest() []news.News {
 		err     error
 	)
 	if ss.parallelize {
-		topNews, err = request.ParallelRequest(ss.api, ss.requiredCache, ss.newsCache, ss.numRetries)
+		topNews, err = request.ParallelRequest(ss.api, ss.requiredCache, ss.newsCache, ss.numRetries, ss.threadPool)
 	} else {
-		topNews, err = request.SerialRequest(ss.api, ss.requiredCache, ss.newsCache)
+		topNews, err = request.SerialRequest(ss.api, ss.requiredCache, ss.newsCache, ss.threadPool)
 	}
 	if err != nil {
 		// if error while obtaining top news.
