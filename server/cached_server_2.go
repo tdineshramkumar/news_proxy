@@ -42,7 +42,7 @@ func NewCachedServerv2(api news.API) Server {
 	}()
 
 	return HandleRequest(func() []news.News {
-		writeLock.RLocker()
+		writeLock.RLock()
 		defer writeLock.RUnlock()
 		return cachedResponse
 	})
