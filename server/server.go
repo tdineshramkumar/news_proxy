@@ -55,7 +55,8 @@ func New(api news.API, parallelize, enableCaching bool) Server {
 	if enableCaching {
 		// return the caching server.
 		fmt.Println("Launching a Cached Server. Parallelize:", parallelize)
-		return NewCachedServer(api, parallelize, numRetries)
+		return NewCachedServerv2(api)
+		//	return NewCachedServer(api, parallelize, numRetries)
 	}
 	fmt.Println("Launching a simple server. Parallelize:", parallelize)
 	// Return simple server if no caching is enabled
