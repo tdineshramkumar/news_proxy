@@ -16,11 +16,6 @@ func (f HandleRequest) HandleRequest() []news.News {
 	return f()
 }
 
-const (
-	SERVER_POOL_SIZE    = 100
-	REQUEST_BUFFER_SIZE = 1000
-)
-
 func loadData() {
 
 }
@@ -29,7 +24,6 @@ func NewCachedServerv2(api news.API) Server {
 	newsCache := lru.LRU_TS(api.CacheSize())
 	threadPool := pool.New(api.PoolSize())
 
-	requestsChannel := make(chan chan []news.News, REQUEST_BUFFER_SIZE)
 	var writeLock sync.RWMutex
 	cachedResponse, _ := request.SerialRequest(api, requiredCache, newsCache, threadPool)
 
@@ -47,21 +41,9 @@ func NewCachedServerv2(api news.API) Server {
 		}
 	}()
 
-	for i := 0; i < SERVER_POOL_SIZE; i++ {
-		go func() {
-			for responseChannel := range requestsChannel {
-				func() {
-					writeLock.RLock()
-					defer writeLock.RUnlock()
-					responseChannel <- cachedResponse
-				}()
-			}
-		}()
-	}
-
 	return HandleRequest(func() []news.News {
-		responseChannel := make(chan []news.News, 1)
-		requestsChannel <- responseChannel
-		return <-responseChannel
+		writeLock.RLocker()
+		defer writeLock.RUnlock()
+		return cachedResponse
 	})
 }
