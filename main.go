@@ -3,24 +3,28 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
+	"net/http"
+	_ "net/http/pprof"
+	"text/template"
+	"time"
+
 	"github.com/t-drk/news_proxy/hn"
 	"github.com/t-drk/news_proxy/news"
 	"github.com/t-drk/news_proxy/server"
-	"log"
-	"net/http"
-	"text/template"
-	"time"
 )
 
-var responseCount uint = 0
-var requestCount uint = 0
+var responseCount chan int = make(chan int, 1)
+var requestCount chan int = make(chan int, 1)
 
 func ResponseRate() {
-	var prevRespCount uint = 0
+	var prevRespCount int = 0
 	for range time.Tick(time.Second) {
-		curRespCount, curReqCount := responseCount, requestCount
+		curRespCount, curReqCount := <-responseCount, <-requestCount
 		fmt.Println("Request Processed: ", curRespCount-prevRespCount, "Pending Requests: ", curReqCount-curRespCount)
 		prevRespCount = curRespCount
+		requestCount <- curReqCount
+		responseCount <- curRespCount
 	}
 }
 func main() {
@@ -49,12 +53,14 @@ func main() {
 		}
 	*/
 	go ResponseRate()
+	requestCount <- 0
+	responseCount <- 0
 	// Create a http server which will interact with this above application server which interacts with the APIs
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
-		requestCount++
+		requestCount <- (<-requestCount + 1)
 		topNews := Server.HandleRequest()
-		responseCount++
+		responseCount <- (<-responseCount + 1)
 		if topNews == nil {
 			// If Server Error
 			http.Error(w, "Failed to load top stories", http.StatusInternalServerError)
